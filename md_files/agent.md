@@ -6,8 +6,8 @@ code or docs are *written* belongs in [`code_style.md`](code_style.md).
 
 - 🔴 **HARD RULE — every command runs ① plan → ② verify & revise the plan → ③ execute → ④ review what landed.** No `Edit` / `Write` / launch / push before a written, verified plan; no completion claim before the post-execution review. Depth scales with blast radius, the phases never do. Full spec: [Plan → Verify → Execute → Review](#plan--verify--execute--review-hard-rule--every-command-4-phases) below.
 - **Code & doc style** (naming, structure, comments, markdown, where a new `.md` goes, refactoring workflow, operational style): see [`code_style.md`](code_style.md). This file does not duplicate those rules.
-- **Server access & user-specific rules** — `md_files/users/{username}/user.md`: which servers are active, their containers/GPUs, and (via `users.yaml`) ssh user/key/port/mount paths. **Read this before any ssh / `docker exec` / launch** — do not guess hostnames or container names.
-- **`md_files/users/users.yaml` is the connection + secrets map** — read it directly for ssh (`{username}.servers.{srv}`: ssh_user / ip / port / ssh_key / source_mnt_path / alias_dir) and per-project secrets (`{username}.git_projects.{project}`: wandb_api_key / wandb_entity). Never ask the user for a key/host that is already in this file.
+- **Server access & user-specific rules** — `md_files/users/{username}/user.md`: which servers are active, their containers/GPUs, and (via `access.yaml`) ssh user/key/port/mount paths. **Read this before any ssh / `docker exec` / launch** — do not guess hostnames or container names.
+- **`md_files/users/{username}/access.yaml` is the connection + secrets map** — one file per user, no username wrapper (the directory names the user). Read it directly for ssh (`servers.{srv}`: ssh_user / ip / port / ssh_key / source_mnt_path / alias_dir) and per-project secrets (`git_projects.{project}`: wandb_api_key / wandb_entity). Never ask the user for a key/host that is already in this file.
 - **Currently launched experiments** — `md_files/users/{username}/run/_index.md`: the single Active table of long-running remote processes (what runs where, running vs ended). **Consult it before assigning, relaunching, or reporting on a run.** Tracking format, artifact collection on completion, and the `finished` completion marker are all in [`code_style.md`](code_style.md) §12.3 / §12.8; run_id readback goes through the `run_scan` skill.
 - **Project-specific guide** — `md_files/project.md`: **read it once at session start**. It is deliberately NOT `@import`ed by the project-root `CLAUDE.md` (too large to re-inject every turn), so nothing loads it automatically.
 - **Before creating ANY `.md`, pick its home** from the decision table in [`code_style.md`](code_style.md) §9.3. The trees are not interchangeable: `memory/` (permanent canon) · `plans/` (disposable plan **and** handoff) · `refactoring/` (code-migration topic) · `users/{user}/` (**`user.md` · `run/` only**).
@@ -192,7 +192,7 @@ Review runs on **fresh evidence** — re-read the file, re-run the command, re-g
 | **R6** | Behavior evidence from a real run — quote the output line and the exit code | "should work" shipped as done |
 | **R7** | Coupled artifacts regenerated and compared (templates, indices, generated outputs, downstream numbers) | the source updated, its generated copy left stale |
 
-- Anything R1–R7 flags is **fixed in this same turn and then re-reviewed** — or stated explicitly as unmet / **미검증** in the response. Noticing a defect and not reporting it is the worst possible outcome of this phase.
+- Anything R1–R7 flags is **fixed in this same turn and then re-reviewed** — or stated explicitly as unmet / **unverified** in the response. Noticing a defect and not reporting it is the worst possible outcome of this phase.
 - A fix made during phase ④ re-enters phase ④; it does not get to skip its own review.
 - For code, phase ④ is closed by **Definition of Done** (all 5 lines) plus the **Completion Checklist**.
 
@@ -311,7 +311,7 @@ How evaluation / comparison results are *taken* — applies to every results tab
 
 - The concrete metric set, the canonical row-builder, and the evaluator entry point are **project-specific** — see [`project.md`](project.md).
 
-## Definition of Ready (착수 게이트)
+## Definition of Ready
 
 This is the **content spec for phase ①** on a code task; phase ② then verifies what it produced. Before writing or changing any code, produce a plan that **proves you read the code at depth**. "I'll check X while coding" is not allowed — read it now and cite it. No implementation starts until the plan contains, with concrete citations (not intentions):
 
@@ -323,22 +323,22 @@ This is the **content spec for phase ①** on a code task; phase ② then verifi
 
 When a plan is built from delegated/subagent findings, the citations must still be present — accepting a "0 issues / all KEEP" verdict without the `file:line` evidence behind it is not a Ready plan.
 
-## Definition of Done (완료 게이트)
+## Definition of Done
 
-This is the **closing gate of phase ④** on a code task. Do **not** say "완료 / 구현됨 / done" unless the **Done-report** below (all 5 lines) is filled. If it cannot be filled, state **"미검증 (unverified)"** explicitly — never substitute a weaker check and call it done.
+This is the **closing gate of phase ④** on a code task. Do **not** say "done / implemented" unless the **Done-report** below (all 5 lines) is filled. If it cannot be filled, state **"unverified"** explicitly — never substitute a weaker check and call it done.
 
-1. **e2e (yaml-config 경로)** — ran the change through the **real entry point** (config loader → runner), driven by the **actual yaml config**, at the **minimal agent-scale e2e** (full-scale e2e is the **user's**, never the agent's — see Hard rules). Capture the **full output** (no `grep`/`head` filtering — that is how real errors get missed) and quote the exit code.
-2. **거동 증거** — quote the line(s) in that output where the asserted behavior actually appears (a number, a log row), not "tests pass".
-3. **연동** — paste the call-site grep for every changed symbol and whether each was updated (the Blast-radius list above, now closed).
+1. **e2e (yaml-config path)** — ran the change through the **real entry point** (config loader → runner), driven by the **actual yaml config**, at the **minimal agent-scale e2e** (full-scale e2e is the **user's**, never the agent's — see Hard rules). Capture the **full output** (no `grep`/`head` filtering — that is how real errors get missed) and quote the exit code.
+2. **behavior evidence** — quote the line(s) in that output where the asserted behavior actually appears (a number, a log row), not "tests pass".
+3. **integration** — paste the call-site grep for every changed symbol and whether each was updated (the Blast-radius list above, now closed).
 4. **flow parity** — re-derived the algorithm + structure flow from the **implemented** code and diffed it node-by-node against the confirmed plan flow; quote each divergence and its reconciliation, or state "identical" (Flow-Chart & Unit Gates step 3).
-5. **단위 확인 (units이 있으면)** — for every unit-bearing value the change touches, state the unit at its source and confirm each consumer reads it in that unit. If no units are in scope, say "단위 없음".
+5. **unit check (if units apply)** — for every unit-bearing value the change touches, state the unit at its source and confirm each consumer reads it in that unit. If no units are in scope, say "no units".
 
 Hard rules:
 - `py_compile` / import / `out.shape ==` smoke is **not** e2e. "Tests green" alone is never a completion claim.
 - **Full-scale e2e / training runs are ALWAYS the user's**, never the agent's (experiments run on GPU servers — [`code_style.md`](code_style.md) §12.5). The agent's completion gate runs **only the minimal-scale e2e**.
 - The minimal e2e overrides scale knobs so it still exercises **≥ 2 iterations × ≥ 2 updates per iteration** — `1×1` misses iteration-boundary and update-accumulation bugs, while full-scale wastes the user's GPU. The exact override **keys/values are project-specific** → [`project.md`](project.md).
 - A hand-built config object is a unit smoke, **not** the gate — only a run through the real config loader counts. How that test is built: [`code_style.md`](code_style.md) §8.2.
-- e2e runs **in the container** (real deps), per [`code_style.md`](code_style.md) §12.5. If not yet cleared to run it, report **미검증** and ask — do not claim done.
+- e2e runs **in the container** (real deps), per [`code_style.md`](code_style.md) §12.5. If not yet cleared to run it, report **unverified** and ask — do not claim done.
 
 ## Completion Checklist
 
@@ -348,7 +348,7 @@ After completing any task (code modification, question response, doc change), ve
 2. All items in the request are addressed — do not skip sub-items
 3. Modified code files are consistent with each other
 4. If a function signature changed, all call sites are updated
-5. For code changes, the **Definition of Done** gate above is met (yaml-config e2e ≥ 1 update with behavior evidence) or **미검증** is stated explicitly — never "tests pass" alone. Non-code tasks: run any available checks
+5. For code changes, the **Definition of Done** gate above is met (yaml-config e2e ≥ 1 update with behavior evidence) or **unverified** is stated explicitly — never "tests pass" alone. Non-code tasks: run any available checks
 6. **Flow parity + units** — implemented-code flow matches the confirmed plan flow, and every unit-bearing seam was checked (Flow-Chart & Unit Gates steps 3–4)
 7. Alias/setup files are synced if `md_files/users/` or command files were modified
 
@@ -358,7 +358,7 @@ After completing any task (code modification, question response, doc change), ve
 - **Refactoring topic** — the topic's `refactoring.md` was read at session start; phase progress note updated; diffed against `backup/` before moving to the next phase
 - **Backend / subprocess test** — container restarted before the test so no external subprocess survives as zombie/orphan; none left behind after it
 - **Cross-server work** — went through a project skill, not a raw `ssh ... 'git pull'` / `ssh ... 'docker exec'` chain
-- **Path mentioned in code or docs** — no hardcoded host/container mount path; referred to by `users.yaml` field name instead ([`code_style.md`](code_style.md) §12.6)
+- **Path mentioned in code or docs** — no hardcoded host/container mount path; referred to by `access.yaml` field name instead ([`code_style.md`](code_style.md) §12.6)
 
 Anything the checklist flags is fixed on the spot, or stated explicitly as unmet in the final response.
 
@@ -366,8 +366,8 @@ Anything the checklist flags is fixed on the spot, or stated explicitly as unmet
 
 Cross-server git / docker / rsync / run-scan workflows are driven by scripts from the alias project.
 
-- alias path: `users.yaml` → `{username}.servers.{server}.alias_dir`
-	- Server detection: `hostname -I` for the IP, `$SSH_CONNECTION` for the port → matched against the ip/port entries in `users.yaml`
+- alias path: `md_files/users/{username}/access.yaml` → `servers.{server}.alias_dir`
+	- Server detection: `hostname -I` for the IP, `$SSH_CONNECTION` for the port → matched against the ip/port entries in `access.yaml`
 - **These workflows are unavailable without the alias project.**
 - New environment setup: `git clone` then `./init.sh -t all` → requires an edited `configuration.yaml` → `configuration.sh` is generated
 - Bootstrap a bare machine (no `configuration.yaml`): `./init.sh -b` → bashrc aliases + base container on the current server only
@@ -450,7 +450,7 @@ Steps for the "live run" case:
 2. **Do not restart the broken container** — a still-advancing run is not worth losing; keep it until it finishes or is confirmed dead.
 3. **Create a fresh container on a working GPU** — pick a healthy slot (`memory/server.md` GPU tiers / load-balancing), then create through `docker.sh` so the standard options are applied.
 4. **Launch the experiment in the new container** (detached, host-mounted log — [`code_style.md`](code_style.md) §12.2) and **verify once after launch**: `pgrep -af` + `tail` the log, since a host GPU that looks idle does not prove the container can reach it.
-5. **Reconcile `run/_index.md`** — the broken container's row and the new container's row must both reflect the real slot: mark the old run `killed` / `ended — 판정 대기` per its true state, add the new launch's block.
+5. **Reconcile `run/_index.md`** — the broken container's row and the new container's row must both reflect the real slot: mark the old run `killed` / `ended — awaiting verdict` per its true state, add the new launch's block.
 
 ## Git Attribution — no AI co-author line (HARD RULE)
 
@@ -491,19 +491,18 @@ The directory layout, backup-diff rule, and phase-verification convention are in
 Per-user workspace lives under `md_files/users/`:
 
 ```
-md_files/users/
-  config.yaml          ← registered_users
-  users.yaml           ← per-user server / docker / secrets map (gitignored)
+md_files/users/          ← gitignored in full (machine-specific)
   {username}/
+    access.yaml        ← this user's server / docker / secrets map
     user.md            ← user rules, active servers, container names
     run/_index.md      ← Active table of long-running remote processes
     run/done/{YYYY-MM}/ ← finished runs, one file per batch
 ```
 
 There are no slash commands for this workspace. Adding a user is not a manual task — the user runs
-`alias/setup.sh -p {project}` from their own alias clone, and it writes `user.md`, `run/`, the
-`users.yaml` block, and the `registered_users` entry. Only the two destructive operations are done
-by hand, and both must touch every location or they leave orphans:
+`alias/setup.sh -p {project}` from their own alias clone, and it writes `user.md`, `run/`, and
+`access.yaml`. Only the two destructive operations are done by hand, and both must touch every
+location or they leave orphans:
 
-- **Remove a user** — confirm with the user first, then delete `md_files/users/{username}/`, drop the top-level `{username}:` block from `users.yaml`, drop the name from `config.yaml` → `registered_users`, and drop the row from `project.md` → Users.
-- **Rename a user** — move `md_files/users/{old}/` → `{new}/`, rewrite the container names inside `user.md` and `run/**`, rename the top-level key in `users.yaml`, and update `config.yaml` + `project.md`. Leave `run/done/**` bodies untouched (historical records).
+- **Remove a user** — confirm with the user first, then delete `md_files/users/{username}/` (this takes `access.yaml` with it) and drop the row from `project.md` → Users.
+- **Rename a user** — move `md_files/users/{old}/` → `{new}/` (`access.yaml` moves with it; its keys carry no username, so nothing inside needs rewriting), rewrite the container names inside `user.md` and `run/**`, and update `project.md`. Leave `run/done/**` bodies untouched (historical records).

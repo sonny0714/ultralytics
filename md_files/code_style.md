@@ -111,7 +111,7 @@ This applies to **every** comment in **every** source language (`#`, `//`, `/* *
 | # | Never appears | Why it is a giveaway |
 |---|---------------|----------------------|
 | 1 | **Assistant / tool attribution** — `by Claude`, `AI-generated`, `Copilot`, `ChatGPT`, `co-authored` | Authorship is the commit's job. Extends the attribution-marker rule above |
-| 2 | **Session or request references** — `(user directive)`, `as requested`, `as discussed`, `per your ask`, `사용자 요청` | Records *who asked*, which no reader of the code can use. Same defect as the task/PR ban above |
+| 2 | **Session or request references** — `(user directive)`, `as requested`, `as discussed`, `per your ask`, `user request` | Records *who asked*, which no reader of the code can use. Same defect as the task/PR ban above |
 | 3 | **Edit-event narration** — `FIXED:`, `UPDATED:`, `NEW:`, `changed from X to Y`, `we now use …`, `previously this did …` | A changelog inside the file; git already holds it, and it rots on the next edit |
 | 4 | **Conversational address** — `Let's …`, `we'll …`, `you can see …`, `feel free to`, `don't worry`, `Note that we` | Addresses a student. Code comments have no second person |
 | 5 | **Self-praise / enthusiasm** — `elegantly`, `cleanly handles`, `nice trick`, `Great!`, `simply just` | Grades the code instead of explaining it |
@@ -292,7 +292,7 @@ immediately (`project.md` index, parent-doc link, or auto-recall memory pointer)
 
 ## 12. Operational Style
 
-Conventions for how code is *run*, built, and distributed across machines. Specific names (containers, servers, mount paths) live in the user's `user.md` (auto-generated from `users.yaml`). This section is the general operational style — substitute the actual names from `user.md` when applying.
+Conventions for how code is *run*, built, and distributed across machines. Specific names (containers, servers, mount paths) live in the user's `user.md` (auto-generated from `access.yaml`). This section is the general operational style — substitute the actual names from `user.md` when applying.
 
 ### 12.1 Container Discipline
 
@@ -355,22 +355,22 @@ docker start base_{PROJECT_USER}                                            # if
 		| Where | server · GPU · container — the actual slot (e.g. `<server> g1 <container>`), never a size label like `heavy/light` |
 		| run_id | the **on-disk save-dir name** — the dir under `artifacts/runs/{project}/{run_id}/`. **NOT the wandb run name.** Minted at launch from timestamp+seed+random, so it is unknown until the run dir exists — fill it by readback (below), `—` until then |
 		| wandb | the wandb **run name**, deterministic from config and therefore known at launch time. `—` when wandb is off (e.g. eval). project (header) + this locates the wandb run |
-		| Status | `running` · `ended — 판정 대기` (proc gone, readout pending) · `done` · `killed` — per method, since methods finish independently |
+		| Status | `running` · `ended — awaiting verdict` (proc gone, readout pending) · `done` · `killed` — per method, since methods finish independently |
 
 	The functions that mint the run_id and the wandb name are project-specific — see [`project.md`](project.md).
 
 - **run_id ≠ wandb name — do not conflate them.** The wandb name is deterministic from config and knowable at launch; the folder run_id is minted at runtime and is *not* predictable. Fill the column by **reading it back right after launch** (`run_scan`, or the newest dir under `artifacts/runs/{project}/`, or the `run_id` field inside the run's own config dump). Never copy the wandb name into the run_id column as a placeholder.
 - Rows stay thin because the batch-shared fields are hoisted to the header and everything else is reconstructable from conventions: log path from §12.2 (`artifacts/tee_log/{project}/{topic}/{ts}.log`), liveness from `pgrep -af '<pattern>'` inside the container — the launch argv carries the per-method flags, so the method→slot map is verifiable rather than guessed. If a launch genuinely needs longer notes (relaunch lineage, fix history), create its done-file (below) at launch time and link it from the header line.
 - Lifecycle is two stages:
-	- **Active** — the batch's H3 block. On a method finishing, flip that method's Status in place (`ended — 판정 대기` until judged); the block stays until the whole batch is judged.
-	- **Done** — once the batch is judged (or confirmed dead/killed), move the block to `run/done/{YYYY-MM}/{YYYY-MM-DD}_{slug}.md` (date = finish/confirm date; launch date if unknown) with a short result readout, and delete the block. Monthly directories + git history are the archive — there is no separate archive stage.
+	- **Active** — the batch's H3 block. On a method finishing, flip that method's Status in place (`ended — awaiting verdict` until judged); the block stays until the whole batch is judged.
+	- **Done** — once the batch is judged (or confirmed dead/killed), move the block to `run/done/{YYYY-MM}/{YYYY-MM-DD}_{slug}.md` (date = finish/confirm date; launch date if unknown) with a short result readout, and delete the block. The monthly directories ARE the archive — `md_files/users/` is gitignored in full, so these records live only on the machine that wrote them; copy anything that must survive that machine into `md_files/memory/` or the project's `outputs/results/`.
 - **Artifact collection on completion (remote launch)** — a run launched on a non-hub server leaves its raw save in that server's above-root `artifacts/runs/{project}/{run_id}/`; before the Active block moves to Done, **collect to the hub** (`sync_hub=true` server) into the hub's in-repo `outputs/models/{topic}/` (via `artifact_sync -a collect`, narrowed to the exact dirs with `-r/-R` and `-x weights` — never a hand-rolled rsync). Collection scope depends on the run kind: a **training run** is pulled as the whole raw `{run_id}/` dir (weights are the artifact); an **adaptation / eval run** is pulled as its **complete logging set** (config + every log file + stdout) **excluding weights and `check_points/`** — adapted weights are never reloaded, but the raw logs must stay re-processable, so collecting only a subset of the logs is not allowed. Then write the judged readout / aggregates under `outputs/results/{topic}/` and record the run_id ↔ method mapping there. The done-file readout links both locations. Topic layout and promoted-path details are project-specific — see the project's `project.md` → Artifacts / Outputs Layout.
 - The agent is not a daemon — status is checked only when prompted; nothing auto-polls.
 
 ### 12.4 Cross-Host Operations
 
 - Cross-server git / docker / rsync / run-discovery ops always go through the project skills — the roster and what each covers is in [`agent.md`](agent.md) → Project Skills. Hand-rolled `ssh ... 'git pull'` / `ssh ... 'docker exec'` / `ssh ... ls` chains are forbidden: they trip on known-host prompts, agent-forwarding gaps, and missing post-write `chown`.
-- A per-batch collector script that re-hardcodes server IPs / ports / keys is the same violation in slower form — those coordinates already live in `users.yaml`, and the skills read them.
+- A per-batch collector script that re-hardcodes server IPs / ports / keys is the same violation in slower form — those coordinates already live in `md_files/users/{user}/access.yaml`, and the skills read them.
 - Short interactive foreground sessions may use `ssh -o ServerAliveInterval=30 -o ServerAliveCountMax=120` for keepalive. Not a substitute for `docker exec -d` on actual long runs — keepalive keeps the pipe alive but the process still dies if the SSH client is killed.
 
 ### 12.5 Tests vs Experiments
@@ -383,10 +383,10 @@ docker start base_{PROJECT_USER}                                            # if
 ### 12.6 Path Mapping
 
 - Source-mount and container-mount paths are per-user / per-server. Never hardcode them in code or docs — cite the field location and let setup substitute.
-- Refer to `users.yaml` fields:
-	- Host source root: `{source_mnt_path}` = `users.{user}.servers.{server}.source_mnt_path`
-	- Container target root: `{target_mnt_path}` = `users.{user}.docker_images.{image}.target_mnt_path`
-	- Alias / setup root: `{alias_dir}` = `users.{user}.servers.{server}.alias_dir`
+- Refer to `md_files/users/{user}/access.yaml` fields (the file carries no username wrapper):
+	- Host source root: `{source_mnt_path}` = `servers.{server}.source_mnt_path`
+	- Container target root: `{target_mnt_path}` = `docker_images.{image}.target_mnt_path`
+	- Alias / setup root: `{alias_dir}` = `servers.{server}.alias_dir`
 - Default container mount rule: `{source_mnt_path}` → `/root/{basename_of_source_mnt_path}` (defined in docker image config).
 - Subdirectories below the project root (`{source_mnt_path}/{project}/...`) are identical between host and container; only the prefix differs.
 
